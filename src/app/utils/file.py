@@ -16,7 +16,8 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 # Create file handler
-fh = logging.FileHandler('cloudinary_upload.log')
+log_path = os.path.join("/tmp", "cloudinary_upload.log")
+fh = logging.FileHandler(log_path)
 fh.setLevel(logging.DEBUG)
 
 # Create formatter and add it to the handlers
