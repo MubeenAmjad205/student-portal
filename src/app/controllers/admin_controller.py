@@ -13,7 +13,7 @@ from app.models.course_progress import CourseProgress
 from app.db.session import get_db
 from app.utils.dependencies import get_current_admin_user
 from uuid import UUID
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload 
 from app.schemas.user import UserRead
 from app.schemas.course import (
     AdminCourseList, AdminCourseDetail, AdminCourseStats,
@@ -191,7 +191,7 @@ def get_notifications(session: Session = Depends(get_db), admin=Depends(get_curr
     return notifications
 
 # 3. Course Management
-@router.put("/courses/{course_id}", response_model=AdminCourseDetail)
+@router.put("/courses/{course_id}")
 async def update_course(
     course_id: str,
     course_update: CourseUpdate,
@@ -266,14 +266,18 @@ async def update_course(
             db.add(course)
             db.commit()
             db.refresh(course)
+            
+            # Return simple success message
+            return {
+                "message": "Course updated successfully"
+            }
+            
         except Exception as e:
             db.rollback()
             raise HTTPException(
                 status_code=500,
                 detail=f"Error updating course in database: {str(e)}"
             )
-        
-        return await get_course_detail(course_id, db, admin)
 
     except HTTPException:
         raise
@@ -507,21 +511,34 @@ async def get_course_detail(
             last_updated=datetime.utcnow()
         )
         
-        from app.schemas.video import VideoRead
+        # Import VideoRead from course schema which matches our needs
+        from app.schemas.course import VideoRead
+        
+        # Prepare video data according to the VideoRead schema in course.py
+        video_data = []
+        for video in course.videos:
+            video_dict = {
+                'id': str(video.id),  # Convert UUID to string as expected by the schema
+                'youtube_url': video.youtube_url,
+                'title': video.title or "",
+                'description': video.description or ""
+            }
+            video_data.append(VideoRead(**video_dict))
+            
         return AdminCourseDetail(
             id=course.id,
             title=course.title,
-            description=course.description,
-            price=course.price,
+            description=course.description or "",
+            price=float(course.price or 0.0),
             thumbnail_url=course.thumbnail_url,
-            difficulty_level=course.difficulty_level,
-            created_by=course.created_by,
-            updated_by=course.updated_by,
-            created_at=course.created_at,
-            updated_at=course.updated_at,
-            status=course.status,
+            difficulty_level=course.difficulty_level or "",
+            created_by=course.created_by or "system",
+            updated_by=course.updated_by or "system",
+            created_at=course.created_at or datetime.utcnow(),
+            updated_at=course.updated_at or datetime.utcnow(),
+            status=course.status or "active",
             stats=stats,
-            videos=[video if isinstance(video, VideoRead) else VideoRead.model_validate(video, from_attributes=True) for video in course.videos]
+            videos=video_data
         )
     except HTTPException:
         raise
@@ -529,92 +546,6 @@ async def get_course_detail(
         raise HTTPException(
             status_code=500,
             detail=f"Error fetching course details: {str(e)}"
-        )
-
-@router.put("/admin/courses/{course_id}/videos", response_model=List[VideoRead])
-def update_course_videos(
-    course_id: str,
-    videos: List[VideoUpdate],
-    user=Depends(get_current_admin_user),
-    session: Session = Depends(get_db)
-):
-    try:
-        # Convert course_id to UUID
-        course_uuid = uuid.UUID(course_id)
-        
-        # Check if course exists
-        course = session.exec(
-            select(Course).where(Course.id == course_uuid)
-        ).first()
-        
-        if not course:
-            raise HTTPException(
-                status_code=404,
-                detail="Course not found"
-            )
-
-        # Get existing videos
-        existing_videos = session.exec(
-            select(Video).where(Video.course_id == course_uuid)
-        ).all()
-        
-        # Track changes
-        changes = {
-            "deleted_videos": [],
-            "added_videos": [],
-            "total_videos": len(videos)
-        }
-
-        # Delete existing videos and track them
-        for video in existing_videos:
-            changes["deleted_videos"].append({
-                "id": str(video.id),
-                "title": video.title,
-                "youtube_url": video.youtube_url
-            })
-            session.delete(video)
-        
-        # Add new videos and track them
-        new_videos = []
-        for video_data in videos:
-            video = Video(
-                course_id=course_uuid,
-                youtube_url=video_data.youtube_url,
-                title=video_data.title,
-                description=video_data.description
-            )
-            session.add(video)
-            new_videos.append(video)
-            changes["added_videos"].append({
-                "title": video_data.title,
-                "youtube_url": video_data.youtube_url
-            })
-
-        session.commit()
-        session.refresh(course)
-
-        # Return both the updated videos and the changes
-        return {
-            "videos": new_videos,
-            "changes": {
-                "deleted_count": len(changes["deleted_videos"]),
-                "added_count": len(changes["added_videos"]),
-                "total_videos": changes["total_videos"],
-                "deleted_videos": changes["deleted_videos"],
-                "added_videos": changes["added_videos"]
-            }
-        }
-
-    except ValueError:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid course ID format"
-        )
-    except Exception as e:
-        session.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail=f"An error occurred while updating course videos: {str(e)}"
         )
 
 from app.utils.email import send_enrollment_approved_email
@@ -966,12 +897,46 @@ def admin_delete_quiz(
     db: Session = Depends(get_db),
     admin=Depends(get_current_admin_user),
 ):
-    """Remove a quiz (and cascade its questions/options via FK cascade)."""
-    quiz = db.get(Quiz, uuid.UUID(quiz_id))
+    """
+    Remove a quiz (and cascade its questions/options via FK cascade).
+    
+    Returns:
+        dict: A success message if the quiz is deleted successfully
+        
+    Raises:
+        HTTPException: If the quiz is not found
+    """
+    try:
+        # Try to convert quiz_id to UUID
+        quiz_uuid = uuid.UUID(quiz_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid quiz ID format"
+        )
+    
+    # Get the quiz
+    quiz = db.get(Quiz, quiz_uuid)
     if not quiz:
-        raise HTTPException(404, "Quiz not found")
-
-    db.delete(quiz)
-    db.commit()
-    return   
+        raise HTTPException(
+            status_code=404,
+            detail="Quiz not found"
+        )
+    
+    try:
+        # Delete the quiz (this will cascade to questions and options)
+        db.delete(quiz)
+        db.commit()
+        
+        # Return success message
+        return {
+            "message": "Quiz deleted successfully"
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error deleting quiz: {str(e)}"
+        )
 
