@@ -288,14 +288,15 @@ async def update_course(
             detail=f"Unexpected error updating course: {str(e)}"
         )
 
-@router.delete("/courses/{course_id}")
-async def delete_course(
+# Delete a course (hard delete)
+@router.delete("/courses/{course_id}", status_code=200)
+def delete_course(
     course_id: str,
     db: Session = Depends(get_db),
     admin: User = Depends(get_current_admin_user)
 ):
-    """Delete a course (soft delete)"""
     try:
+        # Find the course
         course = db.exec(
             select(Course).where(Course.id == course_id)
         ).first()
@@ -306,11 +307,8 @@ async def delete_course(
                 detail="Course not found"
             )
             
-        course.status = "deleted"
-        course.updated_by = admin.email
-        course.updated_at = datetime.utcnow()
-        
-        db.add(course)
+        # Delete the course from the database
+        db.delete(course)
         db.commit()
         
         return {"message": "Course deleted successfully"}
@@ -322,7 +320,6 @@ async def delete_course(
             status_code=500,
             detail=f"Error deleting course: {str(e)}"
         )
-
 @router.get("/dashboard/stats", response_model=dict)
 async def get_dashboard_stats(
     db: Session = Depends(get_db),
