@@ -2,14 +2,13 @@
 from sqlmodel import SQLModel, Field, Relationship, JSON
 import uuid
 from datetime import datetime, timedelta
-from typing import Optional, TYPE_CHECKING, List
+from typing import Optional, TYPE_CHECKING
 import pytz
-from ..utils.time import get_pakistan_time
+from app.utils.time import get_pakistan_time
 
 if TYPE_CHECKING:
-    from .user import User
-    from .course import Course
-    from .payment_proof import PaymentProof
+    from app.models.user import User
+    from app.models.course import Course
 
 import uuid
 
@@ -27,7 +26,6 @@ class Enrollment(SQLModel, table=True):
 
     user: "User" = Relationship(back_populates="enrollments")
     course: "Course" = Relationship(back_populates="enrollments")
-    payment_proofs: List["PaymentProof"] = Relationship(back_populates="enrollment", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
 
     def update_expiration_status(self):
         """Update the expiration status and days remaining"""

@@ -5,10 +5,10 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from datetime import datetime
 
-from ..models.quiz import Quiz, QuizSubmission, Answer, Option
-from ..models.quiz_audit_log import QuizAuditLog
-from ..models.enrollment import Enrollment
-from ..schemas.quiz import (
+from app.models.quiz import Quiz, QuizSubmission, Answer, Option
+from app.models.quiz_audit_log import QuizAuditLog
+from app.models.enrollment import Enrollment
+from app.schemas.quiz import (
     QuizSubmissionCreate,
     QuizResult,
     QuizResultDetail,

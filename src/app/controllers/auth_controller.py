@@ -8,28 +8,28 @@ from fastapi.responses import RedirectResponse
 from authlib.integrations.starlette_client import OAuthError
 import os
 from uuid import uuid4
-from ..models.profile import Profile
+from app.models.profile import Profile
 
-from ..db.session import get_db
-from ..models.user import User
-from ..models.password_reset import PasswordReset
-from ..models.oauth import OAuthAccount
-from ..schemas.user import UserCreate, UserRead
-from ..schemas.password_reset import (
+from app.db.session import get_db
+from app.models.user import User
+from app.models.password_reset import PasswordReset
+from app.models.oauth import OAuthAccount
+from app.schemas.user import UserCreate, UserRead
+from app.schemas.password_reset import (
     ForgotPasswordRequest,
     ForgotPasswordResponse,
     ResetPasswordRequest,
     ResetPasswordResponse,
 )
-from ..schemas.oauth import OAuthResponse
-from ..utils.security import (
+from app.schemas.oauth import OAuthResponse
+from app.utils.security import (
     hash_password,
     verify_password,
     create_access_token,
     decode_access_token,
 )
-from ..utils.email import send_reset_pin_email
-from ..utils.oauth import (
+from app.utils.email import send_reset_pin_email
+from app.utils.oauth import (
     get_google_token,
     get_google_user_info,
     create_oauth_response,

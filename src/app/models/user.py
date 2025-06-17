@@ -5,11 +5,9 @@ from typing import Optional, List, TYPE_CHECKING
 import uuid
 
 if TYPE_CHECKING:
-    from .assignment import AssignmentSubmission
-    from .enrollment import Enrollment
-    from .oauth import OAuthAccount
-    from .profile import Profile
-    from .video_progress import VideoProgress
+    from app.models.assignment import AssignmentSubmission
+    from app.models.enrollment import Enrollment
+    from app.models.oauth import OAuthAccount
 
 class User(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -23,9 +21,8 @@ class User(SQLModel, table=True):
     avatar_url: Optional[str] = None
 
     # Relationships
-    # profile: "Profile" = Relationship(back_populates="user")
+    profile: "Profile" = Relationship(back_populates="user")
     enrollments: List["Enrollment"] = Relationship(back_populates="user")
     oauth_accounts: List["OAuthAccount"] = Relationship(back_populates="user")
     assignment_submissions: List["AssignmentSubmission"] = Relationship(back_populates="student")
-    video_progress: List["VideoProgress"] = Relationship(back_populates="user")
 

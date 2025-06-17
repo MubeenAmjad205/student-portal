@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field, validator, HttpUrl
 from typing import List, Optional, Any
 from datetime import datetime
 import uuid
-from ..schemas.video import VideoUpdate
+from app.schemas.video import VideoUpdate
 
 class VideoCreate(BaseModel):
     youtube_url: str = Field(..., description="YouTube video URL")
