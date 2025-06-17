@@ -3,34 +3,34 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Body, Query, File, UploadFile
 from sqlmodel import Session, select, func
 from typing import List, Optional
-from app.models.user import User
-from app.models.course import Course
-from app.models.video import Video
-from app.models.enrollment import Enrollment
-from app.models.notification import Notification
-from app.models.video_progress import VideoProgress
-from app.models.course_progress import CourseProgress
-from app.db.session import get_db
-from app.utils.dependencies import get_current_admin_user
+from ..models.user import User
+from ..models.course import Course
+from ..models.video import Video
+from ..models.enrollment import Enrollment
+from ..models.notification import Notification
+from ..models.video_progress import VideoProgress
+from ..models.course_progress import CourseProgress
+from ..db.session import get_db
+from ..utils.dependencies import get_current_admin_user
 from uuid import UUID
 from sqlalchemy.orm import selectinload 
-from app.schemas.user import UserRead
-from app.schemas.course import (
+from ..schemas.user import UserRead
+from ..schemas.course import (
     AdminCourseList, AdminCourseDetail, AdminCourseStats,
     CourseCreate, CourseUpdate, CourseRead, CourseCreateAdmin
 )
-from app.schemas.video import VideoUpdate, VideoRead
-from app.schemas.notification import NotificationRead
+from ..schemas.video import VideoUpdate, VideoRead
+from ..schemas.notification import NotificationRead
 import uuid
 from datetime import datetime, timedelta
-from app.utils.time import get_pakistan_time
-from app.models.assignment import Assignment, AssignmentSubmission
-from app.models.quiz import Quiz, Question, Option
+from ..utils.time import get_pakistan_time
+from ..models.assignment import Assignment, AssignmentSubmission
+from ..models.quiz import Quiz, Question, Option
 from typing import List
 from fastapi import Form
-from app.utils.file import save_upload_and_get_url
-from app.schemas.assignment import AssignmentCreate, AssignmentRead, AssignmentList, SubmissionRead, SubmissionGrade, SubmissionStudent, SubmissionStudentsResponse
-from app.schemas.quiz import QuizCreate, QuizRead
+from ..utils.file import save_upload_and_get_url
+from ..schemas.assignment import AssignmentCreate, AssignmentRead, AssignmentList, SubmissionRead, SubmissionGrade, SubmissionStudent, SubmissionStudentsResponse
+from ..schemas.quiz import QuizCreate, QuizRead
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -40,8 +40,8 @@ def list_students(session: Session = Depends(get_db), admin=Depends(get_current_
     query = select(User).where(User.role == "student")
     return session.exec(query).all()
 
-from app.models.course import Course
-from app.schemas.course import AdminCourseList
+from ..models.course import Course
+from ..schemas.course import AdminCourseList
 from sqlmodel import select
 
 @router.get("/courses", response_model=list[AdminCourseList])
@@ -289,36 +289,55 @@ async def update_course(
         )
 
 # Delete a course (hard delete)
-@router.delete("/courses/{course_id}", status_code=200)
+@router.delete("/courses/{course_id}", status_code=status.HTTP_200_OK)
 def delete_course(
     course_id: str,
     db: Session = Depends(get_db),
     admin: User = Depends(get_current_admin_user)
 ):
+    """
+    Deletes a course and all its related data (hard delete).
+
+    This function first finds the course by its ID. It then manually sets the
+    `preview_video_id` to `None` to break a potential circular dependency
+    that can prevent deletion. After committing this change, it proceeds to
+    delete the course. The `cascade="all, delete-orphan"` settings in the
+    SQLModel relationships will handle the deletion of all related entities
+    like videos, enrollments, quizzes, etc.
+    """
+    # Find the course using a direct lookup by primary key
+    course = db.get(Course, course_id)
+    
+    if not course:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Course not found"
+        )
+    
     try:
-        # Find the course
-        course = db.exec(
-            select(Course).where(Course.id == course_id)
-        ).first()
-        
-        if not course:
-            raise HTTPException(
-                status_code=404,
-                detail="Course not found"
-            )
-            
-        # Delete the course from the database
+        # Manually break the circular dependency with the preview video.
+        # This is necessary because the foreign key in the database might not
+        # have ON DELETE SET NULL. Setting it to None here resolves the conflict
+        # before the deletion is attempted.
+        if course.preview_video_id is not None:
+            course.preview_video_id = None
+            db.add(course)
+            db.commit()
+
+        # Now, delete the course. The cascade rules in the models
+        # will handle the deletion of related entities.
         db.delete(course)
         db.commit()
         
         return {"message": "Course deleted successfully"}
-    except HTTPException:
-        raise
+
     except Exception as e:
+        # If any error occurs during the process, rollback the transaction
+        # to leave the database in a consistent state.
         db.rollback()
         raise HTTPException(
-            status_code=500,
-            detail=f"Error deleting course: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred while deleting the course: {str(e)}"
         )
 @router.get("/dashboard/stats", response_model=dict)
 async def get_dashboard_stats(
@@ -545,7 +564,7 @@ async def get_course_detail(
             detail=f"Error fetching course details: {str(e)}"
         )
 
-from app.utils.email import send_enrollment_approved_email
+from ..utils.email import send_enrollment_approved_email
 
 @router.put("/enrollments/approve")
 def approve_enrollment_by_user(

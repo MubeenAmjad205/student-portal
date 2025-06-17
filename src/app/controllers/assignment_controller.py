@@ -5,9 +5,9 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from datetime import datetime
 
-from app.models.assignment import Assignment, AssignmentSubmission
-from app.models.enrollment import Enrollment
-from app.schemas.assignment import SubmissionCreate
+from ..models.assignment import Assignment, AssignmentSubmission
+from ..models.enrollment import Enrollment
+from ..schemas.assignment import SubmissionCreate
 
 def _ensure_enrollment(db: Session, course_id: UUID, student_id: UUID):
     """Raise 403 if the student isn't approved + accessible for this course."""

@@ -5,20 +5,21 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # Import routers
-from app.routers import (
+from .routers import (
     auth_router,
     profile_router,
-    course_router, 
-    enrollment_router,
+    course_router,
+    
 )
-from app.utils.dependencies import get_current_admin_user
-from app.routers.admin_router import router as admin_router
-from app.routers.student_assignment_router import router as sa_router
-from app.routers.student_quiz_router import router as sq_router
-from app.routers.student_dashboard_router import router as student_dashboard_router
+from .controllers import enrollment_controller
+from .utils.dependencies import get_current_admin_user
+from .routers.admin_router import router as admin_router
+from .routers.student_assignment_router import router as sa_router
+from .routers.student_quiz_router import router as sq_router
+from .routers.student_dashboard_router import router as student_dashboard_router
 
 # Import database setup
-from app.db.session import create_db_and_tables
+from .db.session import create_db_and_tables
 
 # Import Cloudinary configuration
 import cloudinary
@@ -60,7 +61,8 @@ def on_startup():
 app.include_router(auth_router.router)
 app.include_router(profile_router.router, prefix="/api/profile", tags=["Profile"])
 app.include_router(course_router.router, prefix="/api/courses", tags=["Courses"])
-app.include_router(enrollment_router.router, prefix="/api/enrollments", tags=["Enrollments"])
+app.include_router(enrollment_controller.router)
+
 app.include_router(admin_router)
 app.include_router(sa_router)
 app.include_router(sq_router)

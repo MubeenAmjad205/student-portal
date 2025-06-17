@@ -2,8 +2,8 @@
 import os
 import httpx
 from dotenv import load_dotenv
-from app.schemas.oauth import GoogleToken, GoogleUserInfo
-from app.utils.security import create_access_token
+from ..schemas.oauth import GoogleToken, GoogleUserInfo
+from ..utils.security import create_access_token
 
 load_dotenv()
 

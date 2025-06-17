@@ -2,7 +2,11 @@
 from sqlmodel import SQLModel, Field, Relationship
 import uuid
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .course import Course
+    from .user import User
 
 class Assignment(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -11,7 +15,8 @@ class Assignment(SQLModel, table=True):
     description: str
     due_date: datetime
 
-    submissions: List["AssignmentSubmission"] = Relationship(back_populates="assignment")
+    submissions: List["AssignmentSubmission"] = Relationship(back_populates="assignment", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
+    course: "Course" = Relationship(back_populates="assignments")
 
 class AssignmentSubmission(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)

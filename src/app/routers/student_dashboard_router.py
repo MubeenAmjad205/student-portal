@@ -2,15 +2,15 @@ from fastapi import APIRouter, Depends
 from sqlmodel import Session, select
 from uuid import UUID
 
-from app.db.session import get_db
-from app.utils.dependencies import get_current_user
-from app.models.video import Video
-from app.models.assignment import Assignment, AssignmentSubmission
-from app.models.quiz import Quiz, QuizSubmission
-from app.models.video_progress import VideoProgress
-from app.models.course_feedback import CourseFeedback
-from app.models.course_progress import CourseProgress
-from app.schemas.course_feedback import CourseFeedbackCreate
+from ..db.session import get_db
+from ..utils.dependencies import get_current_user
+from ..models.video import Video
+from ..models.assignment import Assignment, AssignmentSubmission
+from ..models.quiz import Quiz, QuizSubmission
+from ..models.video_progress import VideoProgress
+from ..models.course_feedback import CourseFeedback
+from ..models.course_progress import CourseProgress
+from ..schemas.course_feedback import CourseFeedbackCreate
 from fastapi import HTTPException, status
 
 router = APIRouter(
@@ -18,8 +18,8 @@ router = APIRouter(
     tags=["student_analytics"],
 )
 
-from app.models.enrollment import Enrollment
-from app.models.course import Course
+from ..models.enrollment import Enrollment
+from ..models.course import Course
 from datetime import datetime
 
 @router.get("")
@@ -142,7 +142,7 @@ def submit_course_feedback(
     user=Depends(get_current_user),
 ):
     # Ensure user is enrolled and access is valid
-    from app.models.enrollment import Enrollment
+    from ..models.enrollment import Enrollment
     from datetime import datetime
     current_time = datetime.utcnow()
     enrollment = db.exec(
