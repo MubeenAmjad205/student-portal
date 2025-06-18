@@ -2,17 +2,19 @@
 from sqlmodel import SQLModel, Field, Relationship, JSON
 import uuid
 from datetime import datetime, timedelta
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, List
 import pytz
-from app.utils.time import get_pakistan_time
+from src.app.utils.time import get_pakistan_time
 
 if TYPE_CHECKING:
-    from app.models.user import User
-    from app.models.course import Course
+    from src.app.models.user import User
+    from src.app.models.course import Course
+    from src.app.models.payment_proof import PaymentProof
 
 import uuid
 
 class Enrollment(SQLModel, table=True):
+    __table_args__ = {"extend_existing": True}
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     user_id: str = Field(foreign_key="user.id")
     course_id: str = Field(foreign_key="course.id")
@@ -24,8 +26,9 @@ class Enrollment(SQLModel, table=True):
     audit_log: list = Field(sa_type=JSON, default_factory=list)
     last_access_date: Optional[datetime] = None
 
-    user: "User" = Relationship(back_populates="enrollments")
-    course: "Course" = Relationship(back_populates="enrollments")
+    user: "src.app.models.user.User" = Relationship(back_populates="enrollments")
+    course: "src.app.models.course.Course" = Relationship(back_populates="enrollments")
+    payment_proofs: List["src.app.models.payment_proof.PaymentProof"] = Relationship(back_populates="enrollment", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
 
     def update_expiration_status(self):
         """Update the expiration status and days remaining"""

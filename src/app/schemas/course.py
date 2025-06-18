@@ -3,12 +3,12 @@ from pydantic import BaseModel, Field, validator, HttpUrl
 from typing import List, Optional, Any
 from datetime import datetime
 import uuid
-from app.schemas.video import VideoUpdate
+from ..schemas.video import VideoUpdate
 
 class VideoCreate(BaseModel):
-    youtube_url: str = Field(..., description="YouTube video URL")
-    title: Optional[str] = Field(None, description="Video title")
-    description: Optional[str] = Field(None, description="Video description")
+    youtube_url: str = Field(..., description="YouTube video URL", example="https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+    title: Optional[str] = Field(None, description="Video title", example="Course Introduction")
+    description: Optional[str] = Field(None, description="Video description", example="A brief overview of the course content.")
 
     @validator('youtube_url')
     def validate_youtube_url(cls, v):
@@ -17,7 +17,7 @@ class VideoCreate(BaseModel):
         return v
 
 class VideoRead(BaseModel):
-    id: str = Field(..., description="Video ID")
+    id: uuid.UUID = Field(..., description="Video ID")
     youtube_url: str = Field(..., description="YouTube video URL")
     title: Optional[str] = Field(None, description="Video title")
     description: Optional[str] = Field(None, description="Video description")
@@ -36,14 +36,14 @@ class VideoWithCheckpoint(BaseModel):
         orm_mode = True
 
 class CourseBase(BaseModel):
-    title: str
-    description: str
-    price: float
-    thumbnail_url: Optional[str] = None
-    difficulty_level: Optional[str] = None
-    outcomes: Optional[str] = ""
-    prerequisites: Optional[str] = ""
-    curriculum: Optional[str] = ""
+    title: str = Field(..., example="The Complete Web Development Bootcamp")
+    description: str = Field(..., example="Learn to build modern web applications from scratch.")
+    price: float = Field(..., example=19.99)
+    thumbnail_url: Optional[str] = Field(default=None, example="https://example.com/images/thumbnail.png")
+    difficulty_level: Optional[str] = Field(default=None, example="Intermediate")
+    outcomes: Optional[str] = Field(default="", example="Build and deploy a full-stack web application.")
+    prerequisites: Optional[str] = Field(default="", example="Basic HTML and CSS knowledge.")
+    curriculum: Optional[str] = Field(default="", example="1. HTML\n2. CSS\n3. JavaScript\n4. React\n5. Node.js")
 
 class CourseCreate(CourseBase):
     pass
@@ -52,7 +52,7 @@ class CourseCreateAdmin(CourseBase):
     """Schema for creating a course by admin with additional fields"""
     preview_video: Optional[VideoCreate] = None
     videos: List[VideoCreate] = []
-    created_by: Optional[str] = None
+    # created_by is set automatically from the current admin user
     status: str = "active"
 
     class Config:
