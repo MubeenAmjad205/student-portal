@@ -3,36 +3,38 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Body, Query, File, UploadFile
 from sqlmodel import Session, select, func
 from typing import List, Optional
-from app.models.user import User
-from app.models.course import Course
-from app.models.video import Video
-from app.models.enrollment import Enrollment
-from app.models.notification import Notification
-from app.models.video_progress import VideoProgress
-from app.models.course_progress import CourseProgress
-from app.db.session import get_db
-from app.utils.dependencies import get_current_admin_user
+from src.app.models.user import User
+from src.app.models.course import Course
+from src.app.models.video import Video
+from src.app.models.enrollment import Enrollment
+from src.app.models.notification import Notification
+from src.app.models.video_progress import VideoProgress
+from src.app.models.course_progress import CourseProgress
+from src.app.db.session import get_db
+from src.app.utils.dependencies import get_current_admin_user
 from uuid import UUID
-from sqlalchemy.orm import selectinload
-from app.schemas.user import UserRead
-from app.schemas.course import (
+from sqlalchemy.orm import selectinload 
+from src.app.schemas.user import UserRead
+from src.app.schemas.course import (
     AdminCourseList, AdminCourseDetail, AdminCourseStats,
     CourseCreate, CourseUpdate, CourseRead, CourseCreateAdmin
 )
-from app.schemas.video import VideoUpdate, VideoRead
-from app.schemas.notification import NotificationRead
+from src.app.schemas.video import VideoUpdate, VideoRead
+from src.app.schemas.notification import NotificationRead, AdminNotificationRead
 import uuid
+import re
 from datetime import datetime, timedelta
-from app.utils.time import get_pakistan_time
-from app.models.assignment import Assignment, AssignmentSubmission
-from app.models.quiz import Quiz, Question, Option
+from src.app.utils.time import get_pakistan_time
+from src.app.models.assignment import Assignment, AssignmentSubmission
+from src.app.models.quiz import Quiz, Question, Option
 from typing import List
 from fastapi import Form
-from app.utils.file import save_upload_and_get_url
-from app.schemas.assignment import AssignmentCreate, AssignmentRead, AssignmentList, SubmissionRead, SubmissionGrade, SubmissionStudent, SubmissionStudentsResponse
-from app.schemas.quiz import QuizCreate, QuizRead
+from src.app.utils.file import save_upload_and_get_url
+from src.app.schemas.assignment import AssignmentCreate, AssignmentRead, AssignmentList, SubmissionRead, SubmissionGrade, SubmissionStudent, SubmissionStudentsResponse
+from src.app.schemas.quiz import QuizCreate, QuizRead, QuizUpdate, QuizResult, QuizSubmissionStatus
+import logging
 
-router = APIRouter(prefix="/admin", tags=["Admin"])
+router = APIRouter(tags=["Admin"])
 
 # 1. Enrollment Management
 @router.get("/users", response_model=List[UserRead])
@@ -40,9 +42,7 @@ def list_students(session: Session = Depends(get_db), admin=Depends(get_current_
     query = select(User).where(User.role == "student")
     return session.exec(query).all()
 
-from app.models.course import Course
-from app.schemas.course import AdminCourseList
-from sqlmodel import select
+
 
 @router.get("/courses", response_model=list[AdminCourseList])
 def admin_list_courses(db: Session = Depends(get_db), admin=Depends(get_current_admin_user)):
@@ -63,135 +63,177 @@ def admin_list_courses(db: Session = Depends(get_db), admin=Depends(get_current_
     ]
 
 # 1b. Create a new course with preview video and videos
-@router.post("/courses")
+@router.post("/courses", status_code=status.HTTP_201_CREATED, response_model=AdminCourseDetail)
 async def create_course(
-    course: str = Form(...),  # JSON string for the entire course data
-    thumbnail: UploadFile = File(None),
+    course_data: CourseCreateAdmin,
     db: Session = Depends(get_db),
-    admin: User = Depends(get_current_admin_user)
+    admin: User = Depends(get_current_admin_user),
 ):
-    """
-    Create a new course (Admin only).
+    """Create a new course.
 
-    **Endpoint:** `/admin/courses` (POST)
+    This endpoint is used by an Admin to create a new course.
+    The request should be standard JSON.
 
-    **Description:**
-    Allows an admin to create a new course, including uploading a thumbnail and specifying a list of videos. Accepts multipart/form-data with a JSON string for the course data and an optional thumbnail image.
-
-    **Request Body:**
-    - `course` (str, required): JSON string representing the course data. Should include fields such as:
-        - `title`: Course title (str, required)
-        - `description`: Course description (str, required)
-        - `price`: Course price (float, required)
-        - `difficulty_level`: Difficulty level (str, optional)
-        - `outcomes`: Outcomes (str, optional)
-        - `prerequisites`: Prerequisites (str, optional)
-        - `curriculum`: Curriculum (str, optional)
-        - `videos`: List of video objects, each with:
-            - `youtube_url` (str, required)
-            - `title` (str, optional)
-            - `description` (str, optional)
-    - `thumbnail` (file, optional): Image file for the course thumbnail.
-
-    **Example Request (Swagger UI):**
-    - `course`: `{ "title": "Python Basics", "description": "Learn Python.", "price": 20.0, "videos": [{ "youtube_url": "https://youtu.be/example1", "title": "Intro" }] }`
-    - `thumbnail`: (select a file)
-
-    **Success Response:**
-    - `200 OK` with JSON body:
+    **Example Request Body:**
     ```json
     {
-      "success": true,
-      "course_id": "<uuid>",
-      "message": "Course created successfully"
+      "title": "The Ultimate Python Course",
+      "description": "A comprehensive course covering all aspects of Python programming.",
+      "price": 99.99,
+      "difficulty_level": "Intermediate",
+      "outcomes": "By the end of this course, you will be able to:\\n- Write clean and efficient Python code.\\n- Build complex applications.\\n- Understand advanced Python concepts.",
+      "prerequisites": "Basic understanding of programming concepts.",
+      "curriculum": "1. Python Basics\\n2. Data Structures\\n3. Object-Oriented Programming\\n4. Web Development with Flask\\n5. Data Science with Pandas and NumPy",
+      "status": "active",
+      "preview_video": {
+        "youtube_url": "https://www.youtube.com/watch?v=preview_video_id",
+        "title": "Course Preview",
+        "description": "A quick look at what this course offers."
+      },
+      "videos": [
+        {
+          "youtube_url": "https://www.youtube.com/watch?v=video_one_id",
+          "title": "Chapter 1: Introduction",
+          "description": "Setting up your Python environment."
+        },
+        {
+          "youtube_url": "https://www.youtube.com/watch?v=video_two_id",
+          "title": "Chapter 2: Data Types",
+          "description": "An in-depth look at Python's data types."
+        }
+      ]
     }
     ```
 
-    **Errors:**
-    - Returns a clear error message if the JSON is invalid or required fields are missing.
+    **Returns:**
+    The newly created course object if successful.
+
+    **Raises:**
+    - `HTTPException(400)`: If a course with the same title already exists.
+    - `HTTPException(500)`: For any other server-side errors.
     """
-    import json
-    from app.models.course import Course
-    from app.models.video import Video
-    from datetime import datetime
+    # Check for existing course
+    if db.exec(select(Course).where(Course.title == course_data.title)).first():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Course with this title already exists")
 
-    # Parse course JSON
-    try:
-        course_data = json.loads(course)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid course JSON")
-
-    # Validate required fields
-    title = course_data.get("title", "")
-    description = course_data.get("description", "")
-    price = course_data.get("price", 0)
-    videos_data = course_data.get("videos", [])
-    difficulty_level = course_data.get("difficulty_level")
-    outcomes = course_data.get("outcomes", "")
-    prerequisites = course_data.get("prerequisites", "")
-    curriculum = course_data.get("curriculum", "")
-    status = course_data.get("status", "active")
-
-    if not title or len(title.strip()) < 3:
-        raise HTTPException(status_code=400, detail="Course title must be at least 3 characters long")
-    if not description or len(description.strip()) < 10:
-        raise HTTPException(status_code=400, detail="Course description must be at least 10 characters long")
-    if price < 0:
-        raise HTTPException(status_code=400, detail="Course price cannot be negative")
-    if not isinstance(videos_data, list):
-        raise HTTPException(status_code=400, detail="Videos must be a list")
-
-    # Check if course with same title already exists
-    existing_course = db.exec(select(Course).where(Course.title == title)).first()
-    if existing_course:
-        raise HTTPException(status_code=400, detail="A course with this title already exists")
-
-    # Save thumbnail if provided
-    thumbnail_url = None
-    if thumbnail is not None:
-        thumbnail_url = save_upload_and_get_url(thumbnail, folder="thumbnails")
-
-    # Create course object
+    # 1. Create all objects in memory first
     new_course = Course(
-        title=title,
-        description=description,
-        price=price,
-        difficulty_level=difficulty_level,
-        outcomes=outcomes,
-        prerequisites=prerequisites,
-        curriculum=curriculum,
-        status=status,
-        thumbnail_url=thumbnail_url,
-        created_by=admin.email,
-        updated_by=admin.email,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow()
+        title=course_data.title,
+        description=course_data.description,
+        price=course_data.price,
+        difficulty_level=course_data.difficulty_level,
+        outcomes=course_data.outcomes,
+        prerequisites=course_data.prerequisites,
+        curriculum=course_data.curriculum,
+        status=course_data.status,
+        created_by=str(admin.id),
+        updated_by=str(admin.id),
+        created_at=get_pakistan_time(),
+        updated_at=get_pakistan_time()
     )
+
+    # 2. Create all video objects first
+    all_video_objects = []
+    preview_video_obj = None
+    if course_data.preview_video:
+        preview_video_obj = Video(**course_data.preview_video.dict())
+        all_video_objects.append(preview_video_obj)
+
+    if course_data.videos:
+        for video_data in course_data.videos:
+            all_video_objects.append(Video(**video_data.dict()))
+
+    # 3. Establish relationships in the correct order
+    # This populates video.course_id via back_populates
+    new_course.videos = all_video_objects
+
+    # This uses the 'post_update' strategy to break the circular dependency
+    if preview_video_obj:
+        new_course.preview_video = preview_video_obj
+
+    # 3. Add only the parent object to the session. Cascade will handle the rest.
     db.add(new_course)
-    db.commit()
+
+    # 4. Commit the entire transaction. SQLAlchemy will resolve the insert order.
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"Database commit failed: {e}")
+        raise HTTPException(status_code=500, detail="An error occurred while creating the course.")
+
+    # 5. Refresh the objects to get DB-generated values
     db.refresh(new_course)
+    if new_course.preview_video:
+        db.refresh(new_course.preview_video)
+    for video in new_course.videos:
+        db.refresh(video)
 
-    # Add videos
-    for video in videos_data:
-        db.add(Video(
-            youtube_url=video["youtube_url"],
-            title=video.get("title", ""),
-            description=video.get("description", ""),
-            course_id=new_course.id
-        ))
-    db.commit()
+    return new_course
 
-    # Get the complete course details
-    return {"success": True, "course_id": str(new_course.id), "message": "Course created successfully"}
+
+@router.get("/courses/{course_id}", response_model=AdminCourseDetail)
+def get_course_detail(
+    course_id: UUID,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin_user),
+):
+    """
+    Get detailed information about a specific course.
+    """
+    course = db.exec(
+        select(Course)
+        .where(Course.id == course_id)
+        .options(
+            selectinload(Course.videos),
+            selectinload(Course.preview_video)
+        )
+    ).first()
+
+    if not course:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Course not found")
+
+    return course
+
 
 # 2. Notifications
-@router.get("/notifications", response_model=List[NotificationRead])
+@router.get("/notifications", response_model=List[AdminNotificationRead])
 def get_notifications(session: Session = Depends(get_db), admin=Depends(get_current_admin_user)):
+    """
+    Get notifications for the admin, extracting course_id from the details string
+    for easier processing on the frontend.
+    """
     notifications = session.exec(select(Notification).order_by(Notification.timestamp.desc()).limit(50)).all()
-    return notifications
+    
+    response_data = []
+    # Regex to find a UUID in the details string
+    uuid_regex = re.compile(r'([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})', re.I)
+
+    for notif in notifications:
+        course_id = None
+        # Search for course ID only in relevant event types
+        if notif.event_type in ["enrollment_request", "enrollment_expired"]:
+            match = uuid_regex.search(notif.details)
+            if match:
+                try:
+                    course_id = uuid.UUID(match.group(1))
+                except ValueError:
+                    course_id = None # Invalid UUID format
+
+        response_data.append(
+            AdminNotificationRead(
+                id=notif.id,
+                user_id=notif.user_id,
+                event_type=notif.event_type,
+                details=notif.details,
+                timestamp=notif.timestamp,
+                course_id=course_id
+            )
+        )
+    return response_data
 
 # 3. Course Management
-@router.put("/courses/{course_id}", response_model=AdminCourseDetail)
+@router.put("/courses/{course_id}")
 async def update_course(
     course_id: str,
     course_update: CourseUpdate,
@@ -266,14 +308,18 @@ async def update_course(
             db.add(course)
             db.commit()
             db.refresh(course)
+            
+            # Return simple success message
+            return {
+                "message": "Course updated successfully"
+            }
+            
         except Exception as e:
             db.rollback()
             raise HTTPException(
                 status_code=500,
                 detail=f"Error updating course in database: {str(e)}"
             )
-        
-        return await get_course_detail(course_id, db, admin)
 
     except HTTPException:
         raise
@@ -284,41 +330,57 @@ async def update_course(
             detail=f"Unexpected error updating course: {str(e)}"
         )
 
-@router.delete("/courses/{course_id}")
-async def delete_course(
+# Delete a course (hard delete)
+@router.delete("/courses/{course_id}", status_code=status.HTTP_200_OK)
+def delete_course(
     course_id: str,
     db: Session = Depends(get_db),
     admin: User = Depends(get_current_admin_user)
 ):
-    """Delete a course (soft delete)"""
+    """
+    Deletes a course and all its related data (hard delete).
+
+    This function first finds the course by its ID. It then manually sets the
+    `preview_video_id` to `None` to break a potential circular dependency
+    that can prevent deletion. After committing this change, it proceeds to
+    delete the course. The `cascade="all, delete-orphan"` settings in the
+    SQLModel relationships will handle the deletion of all related entities
+    like videos, enrollments, quizzes, etc.
+    """
+    # Find the course using a direct lookup by primary key
+    course = db.get(Course, course_id)
+    
+    if not course:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Course not found"
+        )
+    
     try:
-        course = db.exec(
-            select(Course).where(Course.id == course_id)
-        ).first()
-        
-        if not course:
-            raise HTTPException(
-                status_code=404,
-                detail="Course not found"
-            )
-            
-        course.status = "deleted"
-        course.updated_by = admin.email
-        course.updated_at = datetime.utcnow()
-        
-        db.add(course)
+        # Manually break the circular dependency with the preview video.
+        # This is necessary because the foreign key in the database might not
+        # have ON DELETE SET NULL. Setting it to None here resolves the conflict
+        # before the deletion is attempted.
+        if course.preview_video_id is not None:
+            course.preview_video_id = None
+            db.add(course)
+            db.commit()
+
+        # Now, delete the course. The cascade rules in the models
+        # will handle the deletion of related entities.
+        db.delete(course)
         db.commit()
         
         return {"message": "Course deleted successfully"}
-    except HTTPException:
-        raise
+
     except Exception as e:
+        # If any error occurs during the process, rollback the transaction
+        # to leave the database in a consistent state.
         db.rollback()
         raise HTTPException(
-            status_code=500,
-            detail=f"Error deleting course: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred while deleting the course: {str(e)}"
         )
-
 @router.get("/dashboard/stats", response_model=dict)
 async def get_dashboard_stats(
     db: Session = Depends(get_db),
@@ -507,21 +569,34 @@ async def get_course_detail(
             last_updated=datetime.utcnow()
         )
         
-        from app.schemas.video import VideoRead
+        # Import VideoRead from course schema which matches our needs
+        from app.schemas.course import VideoRead
+        
+        # Prepare video data according to the VideoRead schema in course.py
+        video_data = []
+        for video in course.videos:
+            video_dict = {
+                'id': str(video.id),  # Convert UUID to string as expected by the schema
+                'youtube_url': video.youtube_url,
+                'title': video.title or "",
+                'description': video.description or ""
+            }
+            video_data.append(VideoRead(**video_dict))
+            
         return AdminCourseDetail(
             id=course.id,
             title=course.title,
-            description=course.description,
-            price=course.price,
+            description=course.description or "",
+            price=float(course.price or 0.0),
             thumbnail_url=course.thumbnail_url,
-            difficulty_level=course.difficulty_level,
-            created_by=course.created_by,
-            updated_by=course.updated_by,
-            created_at=course.created_at,
-            updated_at=course.updated_at,
-            status=course.status,
+            difficulty_level=course.difficulty_level or "",
+            created_by=course.created_by or "system",
+            updated_by=course.updated_by or "system",
+            created_at=course.created_at or datetime.utcnow(),
+            updated_at=course.updated_at or datetime.utcnow(),
+            status=course.status or "active",
             stats=stats,
-            videos=[video if isinstance(video, VideoRead) else VideoRead.model_validate(video, from_attributes=True) for video in course.videos]
+            videos=video_data
         )
     except HTTPException:
         raise
@@ -531,93 +606,7 @@ async def get_course_detail(
             detail=f"Error fetching course details: {str(e)}"
         )
 
-@router.put("/admin/courses/{course_id}/videos", response_model=List[VideoRead])
-def update_course_videos(
-    course_id: str,
-    videos: List[VideoUpdate],
-    user=Depends(get_current_admin_user),
-    session: Session = Depends(get_db)
-):
-    try:
-        # Convert course_id to UUID
-        course_uuid = uuid.UUID(course_id)
-        
-        # Check if course exists
-        course = session.exec(
-            select(Course).where(Course.id == course_uuid)
-        ).first()
-        
-        if not course:
-            raise HTTPException(
-                status_code=404,
-                detail="Course not found"
-            )
-
-        # Get existing videos
-        existing_videos = session.exec(
-            select(Video).where(Video.course_id == course_uuid)
-        ).all()
-        
-        # Track changes
-        changes = {
-            "deleted_videos": [],
-            "added_videos": [],
-            "total_videos": len(videos)
-        }
-
-        # Delete existing videos and track them
-        for video in existing_videos:
-            changes["deleted_videos"].append({
-                "id": str(video.id),
-                "title": video.title,
-                "youtube_url": video.youtube_url
-            })
-            session.delete(video)
-        
-        # Add new videos and track them
-        new_videos = []
-        for video_data in videos:
-            video = Video(
-                course_id=course_uuid,
-                youtube_url=video_data.youtube_url,
-                title=video_data.title,
-                description=video_data.description
-            )
-            session.add(video)
-            new_videos.append(video)
-            changes["added_videos"].append({
-                "title": video_data.title,
-                "youtube_url": video_data.youtube_url
-            })
-
-        session.commit()
-        session.refresh(course)
-
-        # Return both the updated videos and the changes
-        return {
-            "videos": new_videos,
-            "changes": {
-                "deleted_count": len(changes["deleted_videos"]),
-                "added_count": len(changes["added_videos"]),
-                "total_videos": changes["total_videos"],
-                "deleted_videos": changes["deleted_videos"],
-                "added_videos": changes["added_videos"]
-            }
-        }
-
-    except ValueError:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid course ID format"
-        )
-    except Exception as e:
-        session.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail=f"An error occurred while updating course videos: {str(e)}"
-        )
-
-from app.utils.email import send_enrollment_approved_email
+from src.app.utils.email import send_enrollment_approved_email
 
 @router.put("/enrollments/approve")
 def approve_enrollment_by_user(
@@ -668,7 +657,6 @@ def approve_enrollment_by_user(
             from app.models.user import User
             user = session.exec(select(User).where(User.id == enrollment.user_id)).first()
         if course is None:
-            from app.models.course import Course
             course = session.exec(select(Course).where(Course.id == enrollment.course_id)).first()
         if user and course:
             send_enrollment_approved_email(
@@ -696,7 +684,17 @@ def test_enrollment_expiration(
     session: Session = Depends(get_db),
     admin=Depends(get_current_admin_user)
 ):
-    """Test endpoint to set an enrollment's expiration date to today"""
+    """Test endpoint to set an enrollments expiration date to today.
+
+    Args:
+        user_id (str): ID of the user whose enrollment will be updated
+        course_id (str): ID of the course for the enrollment
+        session (Session): Database session
+        admin (User): Authenticated admin user
+
+    Returns:
+        dict: Status message and expiration date
+    """
     enrollment = session.exec(select(Enrollment).where(Enrollment.user_id == user_id, Enrollment.course_id == course_id)).first()
     if not enrollment:
         raise HTTPException(status_code=404, detail="Enrollment not found")
@@ -909,6 +907,7 @@ def admin_create_quiz(
             course_id=uuid.UUID(course_id),
             title=payload.title,
             description=payload.description,
+            due_date=payload.due_date,
         )
         db.add(quiz)
         db.commit()
@@ -957,8 +956,71 @@ def admin_list_quizzes(
     stmt = select(Quiz).where(Quiz.course_id == uuid.UUID(course_id))
     return db.exec(stmt).all()
 
+@router.put("/courses/{course_id}/quizzes/{quiz_id}", response_model=QuizRead)
+def admin_update_quiz(
+    course_id: str,
+    quiz_id: str,
+    payload: QuizUpdate,
+    db: Session = Depends(get_db),
+    admin=Depends(get_current_admin_user),
+):
+    """Update a quiz."""
+    quiz = db.get(Quiz, uuid.UUID(quiz_id))
+    if not quiz or str(quiz.course_id) != course_id:
+        raise HTTPException(status_code=404, detail="Quiz not found")
+    
+    update_data = payload.dict(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(quiz, key, value)
+    
+    db.add(quiz)
+    db.commit()
+    db.refresh(quiz)
+    return quiz
+
+@router.get("/courses/{course_id}/quizzes/{quiz_id}/submission_status", response_model=List[QuizSubmissionStatus])
+def admin_get_quiz_submission_status(
+    course_id: str,
+    quiz_id: str,
+    db: Session = Depends(get_db),
+    admin=Depends(get_current_admin_user),
+):
+    """Get the submission status for a quiz."""
+    quiz = db.get(Quiz, uuid.UUID(quiz_id))
+    if not quiz or str(quiz.course_id) != course_id:
+        raise HTTPException(status_code=404, detail="Quiz not found")
+
+    statuses = []
+    for sub in quiz.submissions:
+        is_on_time = True
+        if quiz.due_date and sub.submitted_at > quiz.due_date:
+            is_on_time = False
+        
+        statuses.append(
+            QuizSubmissionStatus(
+                submission_id=sub.id,
+                student_id=sub.student_id,
+                submitted_at=sub.submitted_at,
+                is_on_time=is_on_time
+            )
+        )
+    return statuses
+
+@router.get("/courses/{course_id}/quizzes/{quiz_id}/submissions", response_model=List[QuizResult])
+def admin_get_quiz_submissions(
+    course_id: str,
+    quiz_id: str,
+    db: Session = Depends(get_db),
+    admin=Depends(get_current_admin_user),
+):
+    """Get all submissions for a quiz."""
+    quiz = db.get(Quiz, uuid.UUID(quiz_id))
+    if not quiz or str(quiz.course_id) != course_id:
+        raise HTTPException(status_code=404, detail="Quiz not found")
+    return quiz.submissions
+
 @router.delete(
-    "/admin/quizzes/{quiz_id}",
+    "/courses/{course_id}/quizzes/{quiz_id}",
     status_code=204
 )
 def admin_delete_quiz(
@@ -966,12 +1028,45 @@ def admin_delete_quiz(
     db: Session = Depends(get_db),
     admin=Depends(get_current_admin_user),
 ):
-    """Remove a quiz (and cascade its questions/options via FK cascade)."""
-    quiz = db.get(Quiz, uuid.UUID(quiz_id))
+    """
+    Remove a quiz (and cascade its questions/options via FK cascade).
+    
+    Returns:
+        dict: A success message if the quiz is deleted successfully
+        
+    Raises:
+        HTTPException: If the quiz is not found
+    """
+    try:
+        # Try to convert quiz_id to UUID
+        quiz_uuid = uuid.UUID(quiz_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid quiz ID format"
+        )
+    
+    # Get the quiz
+    quiz = db.get(Quiz, quiz_uuid)
     if not quiz:
-        raise HTTPException(404, "Quiz not found")
-
-    db.delete(quiz)
-    db.commit()
-    return   
-
+        raise HTTPException(
+            status_code=404,
+            detail="Quiz not found"
+        )
+    
+    try:
+        # Delete the quiz (this will cascade to questions and options)
+        db.delete(quiz)
+        db.commit()
+        
+        # Return success message
+        return {
+            "message": "Quiz deleted successfully"
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error deleting quiz: {str(e)}"
+        )

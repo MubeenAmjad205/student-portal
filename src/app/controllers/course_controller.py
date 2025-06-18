@@ -2,23 +2,23 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 from sqlalchemy.orm import selectinload
-from app.models.course import Course
-from app.models.enrollment import Enrollment
-from app.models.video import Video
-from app.models.video_progress import VideoProgress
-from app.models.course_progress import CourseProgress
-from app.models.certificate import Certificate
-from app.schemas.course import CourseRead, CourseListRead, CourseExploreList, CourseExploreDetail, CourseCurriculumDetail, CourseDetail, CurriculumSchema, OutcomesSchema, PrerequisitesSchema, CourseBasicDetail, DescriptionSchema
-from app.schemas.course import VideoWithCheckpoint, CourseProgress as CourseProgressSchema
-from app.db.session import get_db
-from app.utils.dependencies import get_current_user
-from app.utils.certificate_generator import CertificateGenerator
+from src.app.models.course import Course
+from ..models.enrollment import Enrollment
+from ..models.video import Video
+from ..models.video_progress import VideoProgress
+from ..models.course_progress import CourseProgress
+from ..models.certificate import Certificate
+from ..schemas.course import CourseRead, CourseListRead, CourseExploreList, CourseExploreDetail, CourseCurriculumDetail, CourseDetail, CurriculumSchema, OutcomesSchema, PrerequisitesSchema, CourseBasicDetail, DescriptionSchema
+from ..schemas.course import VideoWithCheckpoint, CourseProgress as CourseProgressSchema
+from ..db.session import get_db
+from ..utils.dependencies import get_current_user
+from ..utils.certificate_generator import CertificateGenerator
 from fastapi.responses import FileResponse
 import json
 from datetime import datetime
 import uuid
 import os
-from app.utils.time import get_pakistan_time
+from ..utils.time import get_pakistan_time
 from fastapi import File
 
 router = APIRouter(tags=["Courses"])

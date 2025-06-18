@@ -3,11 +3,11 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from sqlmodel import Session, select
 import shutil, os
 from uuid import uuid4
-from app.models.profile import Profile
-from app.schemas.profile import ProfileRead, ProfileUpdate
-from app.db.session import get_db
-from app.utils.dependencies import get_current_user
-from app.utils.file import save_upload_and_get_url
+from ..models.profile import Profile
+from ..schemas.profile import ProfileRead, ProfileUpdate
+from ..db.session import get_db
+from ..utils.dependencies import get_current_user
+from ..utils.file import save_upload_and_get_url
 from fastapi.logger import logger
 
 router = APIRouter(tags=["Profile"])
