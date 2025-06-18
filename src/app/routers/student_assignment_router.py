@@ -4,17 +4,17 @@ from fastapi import APIRouter, Depends, UploadFile, File, status
 from sqlmodel import Session
 from uuid import UUID
 from typing import List
-from app.utils.file import save_upload_and_get_url
+from ..utils.file import save_upload_and_get_url
 
-from app.db.session import get_db
-from app.utils.dependencies import get_current_user
-from app.controllers.assignment_controller import (
+from ..db.session import get_db
+from ..utils.dependencies import get_current_user
+from ..controllers.assignment_controller import (
     list_assignments,
     get_assignment,
     submit_assignment
 )
-from app.models.assignment import AssignmentSubmission
-from app.schemas.assignment import (
+from ..models.assignment import AssignmentSubmission
+from ..schemas.assignment import (
     AssignmentList,
     AssignmentRead,
     SubmissionCreate,

@@ -1,9 +1,9 @@
 # File location: src/app/utils/dependencies.py
 from fastapi import Request, Depends, HTTPException, status
 from sqlmodel import Session
-from app.db.session import get_db
-from app.models.user import User
-from app.utils.security import decode_access_token
+from src.app.db.session import get_db
+from src.app.models.user import User
+from src.app.utils.security import decode_access_token
 
 async def get_current_user(
     request: Request,

@@ -8,34 +8,35 @@ from fastapi.responses import RedirectResponse
 from authlib.integrations.starlette_client import OAuthError
 import os
 from uuid import uuid4
-from app.models.profile import Profile
+from src.app.models.profile import Profile
 
-from app.db.session import get_db
-from app.models.user import User
-from app.models.password_reset import PasswordReset
-from app.models.oauth import OAuthAccount
-from app.schemas.user import UserCreate, UserRead
-from app.schemas.password_reset import (
+from src.app.db.session import get_db
+from src.app.models.user import User
+from src.app.models.password_reset import PasswordReset
+from src.app.models.oauth import OAuthAccount
+from src.app.schemas.user import UserCreate, UserRead
+from src.app.schemas.password_reset import (
     ForgotPasswordRequest,
     ForgotPasswordResponse,
     ResetPasswordRequest,
     ResetPasswordResponse,
 )
-from app.schemas.oauth import OAuthResponse
-from app.utils.security import (
+from src.app.schemas.oauth import OAuthResponse
+from src.app.utils.security import (
     hash_password,
     verify_password,
     create_access_token,
     decode_access_token,
 )
-from app.utils.email import send_reset_pin_email
-from app.utils.oauth import (
+from src.app.utils.email import send_reset_pin_email
+from src.app.utils.oauth import (
     get_google_token,
     get_google_user_info,
     create_oauth_response,
     GOOGLE_CLIENT_ID,
     GOOGLE_REDIRECT_URI
 )
+import logging
 
 router = APIRouter()
 
@@ -80,6 +81,7 @@ def admin_login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     session: Session = Depends(get_db)
 ):
+    logging.info("Attempting admin login for user: %s", form_data.username)
     user = session.exec(
         select(User).where(User.email == form_data.username)
     ).first()

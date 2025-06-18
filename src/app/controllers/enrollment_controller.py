@@ -1,22 +1,25 @@
 # File: application/src/app/controllers/enrollment_controller.py
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlmodel import Session, select
-from app.models.enrollment import Enrollment, get_pakistan_time
-from app.models.course import Course
-from app.schemas.payment_proof import ProofCreate
-from app.db.session import get_db
-from app.utils.dependencies import get_current_user
-from app.models.payment_proof import PaymentProof
-from app.models.notification import Notification
+from ..models.enrollment import Enrollment, get_pakistan_time
+from src.app.models.course import Course
+from ..schemas.payment_proof import ProofCreate
+from ..db.session import get_db
+from ..utils.dependencies import get_current_user
+from ..models.payment_proof import PaymentProof
+from ..models.notification import Notification
 from datetime import datetime, timedelta
 import os
 from uuid import uuid4
-from app.schemas.enrollment import EnrollmentStatus
-from app.utils.file import save_upload_and_get_url
+from ..schemas.enrollment import EnrollmentStatus
+from ..utils.file import save_upload_and_get_url
 
-router = APIRouter(tags=["Enrollment"])
+router = APIRouter(
+    prefix="/api/enrollments",
+    tags=["Enrollments"]
+)
 
-from app.models.bank_account import BankAccount
+from ..models.bank_account import BankAccount
 
 @router.get("/courses/{course_id}/purchase-info")
 def get_purchase_info(course_id: str, session: Session = Depends(get_db)):
@@ -37,7 +40,7 @@ def get_purchase_info(course_id: str, session: Session = Depends(get_db)):
         ]
     }
 
-@router.post("/enrollments/{course_id}/payment-proof")
+@router.post("/{course_id}/payment-proof")
 def submit_payment_proof(
     course_id: str,
     file: UploadFile = File(...),
@@ -75,7 +78,7 @@ def submit_payment_proof(
     session.commit()
     return {"detail": "Payment proof submitted, pending admin approval."}
 
-@router.get("/enrollments/{course_id}/status", response_model=EnrollmentStatus)
+@router.get("/{course_id}/status", response_model=EnrollmentStatus)
 def check_enrollment_status(course_id: str, user=Depends(get_current_user), session: Session = Depends(get_db)):
     enrollment = session.exec(select(Enrollment).where(Enrollment.user_id == user.id, Enrollment.course_id == course_id)).first()
     if not enrollment:
