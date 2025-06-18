@@ -9,7 +9,7 @@ import math
 import uuid
 import logging
 from datetime import datetime
-from ..utils.file import save_upload_and_get_url
+from app.utils.file import save_upload_and_get_url
 from fastapi import UploadFile
 import traceback
 
