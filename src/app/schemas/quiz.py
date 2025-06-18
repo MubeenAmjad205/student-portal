@@ -3,7 +3,6 @@
 from pydantic import BaseModel
 from typing import List, Optional
 from uuid import UUID
-from datetime import datetime
 
 # ─── Admin / Input Schemas ─────────────────────────────────────
 
@@ -15,10 +14,6 @@ class QuestionCreate(BaseModel):
     text: str
     is_multiple_choice: bool
     options: List[OptionCreate]
-
-class QuizUpdate(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
 
 class QuizCreate(BaseModel):
     title: str
@@ -84,16 +79,6 @@ class QuizResultDetail(BaseModel):
     question_id: UUID
     correct: bool
 
-
-class QuizSubmissionStatus(BaseModel):
-    submission_id: UUID
-    student_id: UUID
-    submitted_at: datetime
-    is_on_time: bool
-
-    class Config:
-        orm_mode = True
-        from_attributes = True
 
 class QuizResult(BaseModel):
     submission_id: UUID

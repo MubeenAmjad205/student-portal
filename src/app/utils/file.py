@@ -9,16 +9,14 @@ import cloudinary.uploader
 from cloudinary.utils import cloudinary_url
 
 # Import Cloudinary configuration
-from ..config.cloudinary_config import cloudinary
+from app.config.cloudinary_config import cloudinary
 
 # Configure logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 # Create file handler
-log_dir = os.path.join(os.path.expanduser("~"), ".student-portal", "logs")
-os.makedirs(log_dir, exist_ok=True)
-log_path = os.path.join(log_dir, "cloudinary_upload.log")
+log_path = os.path.join("/tmp", "cloudinary_upload.log")
 fh = logging.FileHandler(log_path)
 fh.setLevel(logging.DEBUG)
 

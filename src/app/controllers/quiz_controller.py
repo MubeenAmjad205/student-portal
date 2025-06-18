@@ -5,12 +5,10 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from datetime import datetime
 
-from ..models.quiz import Quiz, QuizSubmission, Answer, Option
-from ..models.quiz_audit_log import QuizAuditLog
-from ..models.enrollment import Enrollment
-from ..schemas.quiz import (
-    QuizCreate,
-    QuizUpdate,
+from app.models.quiz import Quiz, QuizSubmission, Answer, Option
+from app.models.quiz_audit_log import QuizAuditLog
+from app.models.enrollment import Enrollment
+from app.schemas.quiz import (
     QuizSubmissionCreate,
     QuizResult,
     QuizResultDetail,
@@ -187,50 +185,3 @@ def get_quiz_result(
         total=len(details),
         details=details
     )
-
-
-def create_quiz(db: Session, course_id: UUID, quiz_data: QuizCreate) -> Quiz:
-    new_quiz = Quiz(course_id=course_id, title=quiz_data.title, description=quiz_data.description)
-    db.add(new_quiz)
-    db.commit()
-    db.refresh(new_quiz)
-
-    for q_data in quiz_data.questions:
-        new_question = Question(quiz_id=new_quiz.id, text=q_data.text, is_multiple_choice=q_data.is_multiple_choice)
-        db.add(new_question)
-        db.commit()
-        db.refresh(new_question)
-
-        for o_data in q_data.options:
-            new_option = Option(question_id=new_question.id, text=o_data.text, is_correct=o_data.is_correct)
-            db.add(new_option)
-    
-    db.commit()
-    db.refresh(new_quiz)
-    return new_quiz
-
-def update_quiz(db: Session, quiz_id: UUID, quiz_data: QuizUpdate) -> Quiz:
-    quiz = db.get(Quiz, quiz_id)
-    if not quiz:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found")
-
-    update_data = quiz_data.dict(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(quiz, key, value)
-
-    db.add(quiz)
-    db.commit()
-    db.refresh(quiz)
-    return quiz
-
-def delete_quiz(db: Session, quiz_id: UUID):
-    quiz = db.get(Quiz, quiz_id)
-    if not quiz:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found")
-    
-    db.delete(quiz)
-    db.commit()
-    return {"message": "Quiz deleted successfully"}
-
-def get_quiz_submissions(db: Session, quiz_id: UUID):
-    return db.exec(select(QuizSubmission).where(QuizSubmission.quiz_id == quiz_id)).all()

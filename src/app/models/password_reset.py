@@ -4,7 +4,6 @@ import uuid
 from datetime import datetime, timedelta
 
 class PasswordReset(SQLModel, table=True):
-    __table_args__ = {"extend_existing": True}
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     user_id: uuid.UUID = Field(foreign_key="user.id", nullable=False, index=True)
     pin: str = Field(nullable=False, description="6-digit reset PIN")
