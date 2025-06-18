@@ -5,15 +5,15 @@ from sqlmodel import Session
 from uuid import UUID
 from typing import List
 
-from app.db.session import get_db
-from app.utils.dependencies import get_current_user
-from app.controllers.quiz_controller import (
+from ..db.session import get_db
+from ..utils.dependencies import get_current_user
+from ..controllers.quiz_controller import (
     list_quizzes,
     get_quiz_detail,
     submit_quiz,
     get_quiz_result,
 )
-from app.schemas.quiz import (
+from ..schemas.quiz import (
     QuizListRead,
     QuizDetailRead,
     QuizSubmissionCreate,
