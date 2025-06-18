@@ -2,7 +2,6 @@
 from sqlmodel import SQLModel, Field, Relationship
 import uuid
 from typing import Optional, List, TYPE_CHECKING
-import uuid
 
 if TYPE_CHECKING:
     from src.app.models.assignment import AssignmentSubmission
@@ -24,9 +23,27 @@ class User(SQLModel, table=True):
     avatar_url: Optional[str] = None
 
     # Relationships
-    # profile: "Profile" = Relationship(back_populates="user")
-    enrollments: List["src.app.models.enrollment.Enrollment"] = Relationship(back_populates="user")
-    oauth_accounts: List["src.app.models.oauth.OAuthAccount"] = Relationship(back_populates="user")
-    assignment_submissions: List["src.app.models.assignment.AssignmentSubmission"] = Relationship(back_populates="student")
-    video_progress: List["src.app.models.video_progress.VideoProgress"] = Relationship(back_populates="user")
+    profile: Optional["Profile"] = Relationship(
+        back_populates="user",
+        sa_relationship_kwargs={
+            "uselist": False,
+            "cascade": "all, delete-orphan"
+        }
+    )
+    enrollments: List["Enrollment"] = Relationship(
+        back_populates="user",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
+    oauth_accounts: List["OAuthAccount"] = Relationship(
+        back_populates="user",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
+    assignment_submissions: List["AssignmentSubmission"] = Relationship(
+        back_populates="student",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
+    video_progress: List["VideoProgress"] = Relationship(
+        back_populates="user",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
 
